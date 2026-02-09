@@ -16,7 +16,7 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = SECRET_KEY
 app.config["DEBUG"] = DEBUG
 app.url_map.strict_slashes = False
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*", "allow_headers": ["Content-Type", "Authorization"], "methods": ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]}})
 
 logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logging.getLogger("werkzeug").setLevel(logging.DEBUG)
