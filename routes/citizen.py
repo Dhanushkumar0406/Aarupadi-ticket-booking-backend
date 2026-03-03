@@ -7,7 +7,7 @@ from utils.db import get_db_connection
 citizen_bp = Blueprint("citizen_bp", __name__)
 
 
-@citizen_bp.route("/citizen/<int:citizen_id>", methods=["GET"])
+@citizen_bp.route("/citizen/<citizen_id>", methods=["GET"])
 def get_citizen(citizen_id):
     payload, error, status = get_authenticated_user()
     if error:

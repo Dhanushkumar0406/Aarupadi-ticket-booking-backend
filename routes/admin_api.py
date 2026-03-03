@@ -11,21 +11,14 @@ from utils.token import generate_token
 
 admin_api_bp = Blueprint("admin_api", __name__, url_prefix="/api/admin")
 
-TEMPLE_PRICES = {
-    "Palani": 200,
-    "Thiruchendur": 250,
-    "Swamimalai": 350,
-    "Thirupparamkunram": 350,
-    "Pazhamudircholai": 350,
-    "Tiruttani": 300,
-    "Marudhamalai": 150,
+TEMPLE_NAMES = {
+    "Palani",
+    "Thiruchendur",
+    "Swamimalai",
+    "Thirupparamkunram",
+    "Pazhamudircholai",
+    "Tiruttani",
 }
-
-
-def _calculate_cost(age, temple_name):
-    if age > 60:
-        return 0
-    return TEMPLE_PRICES.get(temple_name, 0)
 
 
 def _generate_citizen_id():
@@ -178,7 +171,7 @@ def issue_ticket(user_id):
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid age."}), 400
 
-    if temple_name not in TEMPLE_PRICES:
+    if temple_name not in TEMPLE_NAMES:
         return jsonify({"error": "Invalid temple name."}), 400
 
     conn = get_db_connection()
@@ -193,7 +186,7 @@ def issue_ticket(user_id):
         conn.close()
         return jsonify({"error": "User must be approved before issuing a ticket."}), 403
 
-    cost = _calculate_cost(age, temple_name)
+    cost = 0  # Free tour for all eligible citizens (age 60+)
     citizen_id = _generate_citizen_id()
 
     while True:

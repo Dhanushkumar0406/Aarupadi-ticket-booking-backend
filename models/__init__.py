@@ -20,6 +20,7 @@ REGISTRATION_COLUMNS = {
     "boarding_point": "TEXT NOT NULL DEFAULT ''",
     "created_by_user_id": "INTEGER",
     "updated_at": "TEXT",
+    "aadhar_document": "TEXT DEFAULT NULL",
 }
 
 

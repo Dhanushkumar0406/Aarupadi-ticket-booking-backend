@@ -1,21 +1,29 @@
+import os
 import random
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_from_directory
+from werkzeug.utils import secure_filename
 
 from utils.audit import log_action
 from utils.auth import get_authenticated_user, get_optional_user, require_admin
 from utils.db import get_db_connection
 
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "..", "uploads", "aadhar")
+ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "pdf"}
+
+
+def _allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 registration_bp = Blueprint("registration_bp", __name__)
 
 TEMPLE_PRICES = {
-    "Palani": 200,
-    "Thiruchendur": 250,
-    "Swamimalai": 350,
-    "Thirupparamkunram": 350,
-    "Pazhamudircholai": 350,
-    "Tiruttani": 300,
-    "Marudhamalai": 150,
+    "Palani": 0,
+    "Thiruchendur": 0,
+    "Swamimalai": 0,
+    "Thirupparamkunram": 0,
+    "Pazhamudircholai": 0,
+    "Tiruttani": 0,
 }
 
 
@@ -42,9 +50,18 @@ def _validate_temple(temple_name):
     return None
 
 
+@registration_bp.route("/uploads/aadhar/<path:filename>", methods=["GET"])
+def serve_aadhar_document(filename):
+    return send_from_directory(os.path.abspath(UPLOAD_FOLDER), filename)
+
+
 @registration_bp.route("/register", methods=["POST"])
 def register():
-    data = request.get_json(silent=True) or {}
+    # Accept both multipart/form-data (with file) and application/json
+    if request.content_type and "multipart/form-data" in request.content_type:
+        data = request.form
+    else:
+        data = request.get_json(silent=True) or {}
 
     name = data.get("name", "").strip()
     city = data.get("city", "").strip()
@@ -68,15 +85,12 @@ def register():
     if err:
         return jsonify(err), 400
 
-    if age >= 60:
-        cost = 0
-        temple_name = "Aarupadai Murugan Temples - Free Package"
-        package_language = "Free"
-    else:
-        if not package_language or package_language not in ["Tamil", "English"]:
-            return jsonify({"error": "Package language is required for age below 60."}), 400
-        cost = 2500
-        temple_name = "Aarupadai Murugan Temples Package" if package_language == "English" else "ஆறுபடை முருகன் கோவில் பேக்கேஜ்"
+    if age < 60:
+        return jsonify({"error": "Only people aged 60 & above are eligible for this tour."}), 400
+
+    cost = 0
+    temple_name = "Aarupadai Murugan Temples - Free Package"
+    package_language = "Free"
 
     payload, auth_error, auth_status = get_optional_user()
     created_by_user_id = None
@@ -85,6 +99,16 @@ def register():
             created_by_user_id = int(payload.get("sub"))
         except (TypeError, ValueError):
             created_by_user_id = None
+
+    # Handle Aadhar document upload
+    aadhar_document_name = None
+    aadhar_file = request.files.get("aadhar_document")
+    if aadhar_file and aadhar_file.filename:
+        if not _allowed_file(aadhar_file.filename):
+            return jsonify({"error": "Invalid file type. Only JPG, PNG, PDF are allowed."}), 400
+        if len(aadhar_file.read()) > 5 * 1024 * 1024:
+            return jsonify({"error": "File size must be under 5MB."}), 400
+        aadhar_file.seek(0)
 
     citizen_id = generate_citizen_id()
 
@@ -97,15 +121,23 @@ def register():
             break
         citizen_id = generate_citizen_id()
 
+    # Save file after citizen_id is confirmed unique
+    if aadhar_file and aadhar_file.filename:
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        ext = aadhar_file.filename.rsplit(".", 1)[1].lower()
+        safe_name = secure_filename(f"{citizen_id}_aadhar.{ext}")
+        aadhar_file.save(os.path.join(UPLOAD_FOLDER, safe_name))
+        aadhar_document_name = safe_name
+
     cur.execute(
         """
         INSERT INTO registrations (
             citizen_id, name, city, district, age, aadhar_number, temple_name, cost,
-            boarding_point, status, package_language, created_at, created_by_user_id
+            boarding_point, status, package_language, aadhar_document, created_at, created_by_user_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, datetime('now'), ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, datetime('now'), ?)
         """,
-        (citizen_id, name, city, district, age, aadhar_number, temple_name, cost, city, package_language, created_by_user_id),
+        (citizen_id, name, city, district, age, aadhar_number, temple_name, cost, city, package_language, aadhar_document_name, created_by_user_id),
     )
     conn.commit()
     registration_id = cur.lastrowid
@@ -150,7 +182,7 @@ def get_my_registrations():
     cur.execute(
         """
         SELECT id, citizen_id, name, city, district, age, aadhar_number, temple_name, cost,
-               boarding_point, status, package_language, created_at, updated_at
+               boarding_point, status, package_language, aadhar_document, created_at, updated_at
         FROM registrations
         WHERE created_by_user_id = ?
         ORDER BY created_at DESC
@@ -228,7 +260,7 @@ def get_registrations():
     cur.execute(
         f"""
         SELECT id, citizen_id, name, city, district, age, aadhar_number, temple_name, cost,
-               boarding_point, status, package_language, created_at, created_by_user_id, updated_at
+               boarding_point, status, package_language, aadhar_document, created_at, created_by_user_id, updated_at
         FROM registrations
         {where_clause}
         ORDER BY created_at DESC

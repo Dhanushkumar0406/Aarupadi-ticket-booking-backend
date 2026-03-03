@@ -17,6 +17,7 @@ from routes.user_api import user_api_bp
 app = Flask(__name__)
 app.config["SECRET_KEY"] = SECRET_KEY
 app.config["DEBUG"] = DEBUG
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB max upload
 app.url_map.strict_slashes = False
 CORS(app, resources={r"/*": {"origins": "*", "allow_headers": ["Content-Type", "Authorization"], "methods": ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]}})
 
@@ -45,5 +46,5 @@ app.register_blueprint(user_api_bp)
 
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "5001"))
+    port = int(os.getenv("PORT", "6006"))
     app.run(debug=DEBUG, port=port)
