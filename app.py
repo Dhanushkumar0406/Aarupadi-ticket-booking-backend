@@ -1,6 +1,8 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 import logging
+import os
+
 from config.config import SECRET_KEY, DEBUG
 from models import init_db
 from routes.auth import auth_bp
@@ -43,4 +45,5 @@ app.register_blueprint(user_api_bp)
 
 
 if __name__ == "__main__":
-    app.run(debug=DEBUG)
+    port = int(os.getenv("PORT", "5001"))
+    app.run(debug=DEBUG, port=port)
